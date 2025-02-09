@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MadURL Shortener</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container-fluid">
+          <a class="navbar-brand" href="index.html">
+            <i class="bi bi-link-45deg"></i> Mad-URL Shortener
+          </a>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+              <li class="nav-item">
+                <a class="nav-link active" aria-current="page" href="index.html">Home</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="pricing.html">Pricing</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="bulkshortening.html">Bulk Shortening</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="image_to_pdf.html">Image to PDF</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+    <div class="container mt-5">
+        <div class="text-center">
+            <h1>Welcome to Mad-URL Shortener</h1>
+            <p>Shorten your URLs with ease.</p>
+            <form id="urlForm" class="d-flex flex-column align-items-center">
+                <div class="input-group mb-3" style="max-width: 500px;">
+                    <input id="urlInput" class="form-control" type="url" placeholder="Enter the URL" required>
+                    <button id="copyButton" class="btn btn-outline-secondary" type="button" style="display: none;">
+                        <i class="bi bi-clipboard"></i> Copy URL
+                    </button>
+                </div>
+                <div class="input-group mb-3" style="max-width: 500px;">
+                    <input id="baseUrlInput" class="form-control" type="text" value="https://urlshort.themadhvi.com/" disabled style="text-align: center; border: 0px;">
+                    <input id="customCodeField" class="form-control" type="text" placeholder="Enter custom code (optional)" style="border: 0px;">
+                </div>
+                <div class="d-flex justify-content-center gap-2 mt-3">
+                    <button id="getUrlButton" class="btn btn-outline-success" type="submit">
+                        <span id="getUrlText">Get URL</span>
+                        <span id="loadingSpinner" class="spinner-border spinner-border-sm" role="status" style="display: none;"></span>
+                    </button>
+                    <button id="qrCodeButton" class="btn btn-primary" style="display: none;">Get QR Code</button>
+                    <button id="createNewUrlButton" class="btn btn-outline-secondary" type="button" style="display: none;">Create New URL</button>
+                </div>
+            </form>
+            <div id="qrCodeContainer" class="mt-3" style="display: none;">
+                <img id="qrCodeImage" src="" alt="QR Code" style="max-width: 200px;">
+                <br>
+                <a id="downloadLink" href="#" download="qrcode.png">Download QR Code</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('urlForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const urlInput = document.getElementById('urlInput');
+            const customCodeField = document.getElementById('customCodeField');
+            const baseUrlInput=document.getElementById('baseUrlInput');
+            const getUrlButton = document.getElementById('getUrlButton');
+            const getUrlText = document.getElementById('getUrlText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const copyButton = document.getElementById('copyButton');
+            const qrCodeButton = document.getElementById('qrCodeButton');
+            const createNewUrlButton = document.getElementById('createNewUrlButton');
+
+            if (!urlInput.value.trim()) {
+                alert("❌ Please enter a valid URL");
+                return;
+            }
+
+            // Show loading spinner
+            getUrlText.style.display = 'none';
+            loadingSpinner.style.display = 'inline-block';
+            getUrlButton.disabled = true;
+
+            try {
+                const requestData = { original_url: urlInput.value.trim() };
+                if (customCodeField.value.trim()) {
+                    requestData.custom_code = customCodeField.value.trim();
+                }
+
+                const response = await fetch('https://urlshort.themadhvi.com/shorten', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Server error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const shortUrl = data.short_url;
+
+                urlInput.value = shortUrl;
+                urlInput.readOnly = true;
+                customCodeField.style.display = 'none';
+                baseUrlInput.style.display='none';
+                copyButton.style.display = 'block';
+                qrCodeButton.style.display = 'block';
+                createNewUrlButton.style.display = 'block';
+                getUrlButton.style.display = 'none';
+                loadingSpinner.style.display = 'none';
+
+                // Copy to clipboard functionality
+                copyButton.addEventListener('click', function () {
+                    navigator.clipboard.writeText(shortUrl).then(() => {
+                        alert("✅ URL copied to clipboard: " + shortUrl);
+                    }).catch(err => console.error("Clipboard Copy Error:", err));
+                });
+
+                // Generate QR Code
+                qrCodeButton.addEventListener('click', async function () {
+                    try {
+                        const shortCode = shortUrl.split('/').pop();
+                        const qrCodeResponse = await fetch(`https://urlshort.themadhvi.com/qr/${shortCode}`);
+
+                        if (!qrCodeResponse.ok) throw new Error("Error generating QR Code!");
+
+                        const qrCodeBlob = await qrCodeResponse.blob();
+                        const qrCodeObjectURL = URL.createObjectURL(qrCodeBlob);
+
+                        document.getElementById('qrCodeImage').src = qrCodeObjectURL;
+                        document.getElementById('qrCodeContainer').style.display = 'block';
+                        document.getElementById('downloadLink').href = qrCodeObjectURL;
+                    } catch (error) {
+                        alert("❌ " + error.message);
+                    }
+                });
+
+            } catch (error) {
+                console.error("❌ Error:", error);
+                alert("⚠️ " + error.message);
+                getUrlText.style.display = 'inline-block';
+                loadingSpinner.style.display = 'none';
+                getUrlButton.disabled = false;
+            }
+        });
+
+        // Reset Form
+        document.getElementById('createNewUrlButton').addEventListener('click', function () {
+            document.getElementById('urlInput').value = '';
+            document.getElementById('urlInput').readOnly = false;
+            document.getElementById('customCodeField').value = '';
+            document.getElementById('customCodeField').style.display = 'block';
+            document.getElementById('copyButton').style.display = 'none';
+            document.getElementById('qrCodeButton').style.display = 'none';
+            document.getElementById('createNewUrlButton').style.display = 'none';
+            document.getElementById('qrCodeContainer').style.display = 'none';
+            document.getElementById('getUrlButton').style.display = 'block';
+            document.getElementById('getUrlButton').disabled = false;
+            document.getElementById('getUrlText').style.display = 'inline-block';
+            document.getElementById('loadingSpinner').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
